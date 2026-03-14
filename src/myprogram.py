@@ -39,7 +39,7 @@ class MyModel:
                 pass
 
             import nltk
-            corpora = ('gutenberg', 'brown', 'udhr', 'cess_esp', 'floresta', 'mac_morpho', 'indian', 'machado')
+            corpora = ('gutenberg', 'brown', 'udhr', 'cess_esp', 'floresta', 'mac_morpho', 'indian', 'machado', 'sinica_treebank', 'jeita')
             for corpus_id in corpora:
                 nltk.download(corpus_id, quiet=True)
 

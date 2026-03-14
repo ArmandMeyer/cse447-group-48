@@ -5,3 +5,9 @@ VOLUME ["/job/data", "/job/src", "/job/work", "/job/output"]
 
 # You should install any dependencies you need here.
 # RUN pip install tqdm
+
+RUN pip install nltk
+
+RUN python -c "import nltk; nltk.download('gutenberg'); nltk.download('brown')"
+
+CMD ["python", "model.py"]
