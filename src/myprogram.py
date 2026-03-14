@@ -32,13 +32,37 @@ class MyModel:
     def load_training_data(cls):
         """Return a single long string of training text from NLTK corpora."""
         try:
+            import ssl
+            try:
+                ssl._create_default_https_context = ssl._create_unverified_context
+            except AttributeError:
+                pass
+
             import nltk
-            # Download corpora quietly if not already present
-            for corpus_id in ('gutenberg', 'brown'):
+            corpora = ('gutenberg', 'brown', 'udhr', 'cess_esp', 'floresta', 'mac_morpho', 'indian', 'machado')
+            for corpus_id in corpora:
                 nltk.download(corpus_id, quiet=True)
 
-            from nltk.corpus import gutenberg, brown
-            text = gutenberg.raw() + brown.raw()
+            text = ""
+            for corpus_id in corpora:
+                try:
+                    corpus = getattr(nltk.corpus, corpus_id)
+                    if hasattr(corpus, 'raw'):
+                        if corpus_id == 'udhr':
+                            for fileid in corpus.fileids():
+                                text += corpus.raw(fileid)
+                        else:
+                            try:
+                                text += corpus.raw()
+                            except:
+                                try:
+                                    for fileid in corpus.fileids():
+                                        text += corpus.raw(fileid)
+                                except:
+                                    pass
+                except Exception as e:
+                    pass
+
             print(f'Loaded {len(text):,} characters from NLTK corpora')
             return [text]
         except Exception as e:
@@ -93,32 +117,42 @@ class MyModel:
     # Prediction
     # ------------------------------------------------------------------
 
-    def _top3(self, counter):
-        """Return the top-3 characters from a {char: count} dict."""
-        if not counter:
-            return []
-        return [ch for ch, _ in sorted(counter.items(), key=lambda x: -x[1])[:3]]
-
     def predict_next(self, context):
         """
         Predict the 3 most likely next characters after `context`.
         Uses backoff from MAX_N down to unigram.
         """
+        guesses = []
+        
         # Try from longest context down to bigram
         for n in range(self.MAX_N, 1, -1):
             if len(context) >= n - 1:
                 ctx = context[-(n - 1):]
                 if ctx in self.ngrams.get(n, {}):
-                    top = self._top3(self.ngrams[n][ctx])
-                    if top:
-                        return top
+                    candidates = sorted(self.ngrams[n][ctx].items(), key=lambda x: -x[1])
+                    for ch, _ in candidates:
+                        if ch not in guesses:
+                            guesses.append(ch)
+                        if len(guesses) >= 3:
+                            return guesses
 
         # Unigram fallback
         if self.unigrams:
-            return self._top3(self.unigrams)
+            candidates = sorted(self.unigrams.items(), key=lambda x: -x[1])
+            for ch, _ in candidates:
+                if ch not in guesses:
+                    guesses.append(ch)
+                if len(guesses) >= 3:
+                    return guesses
 
         # Last resort: random printable ASCII
-        return random.sample(string.ascii_letters, 3)
+        for ch in string.ascii_letters:
+            if ch not in guesses:
+                guesses.append(ch)
+            if len(guesses) >= 3:
+                return guesses
+                
+        return guesses
 
     def run_pred(self, data):
         preds = []
@@ -126,7 +160,9 @@ class MyModel:
             top_guesses = self.predict_next(inp)
             # Pad to exactly 3 guesses if needed
             while len(top_guesses) < 3:
-                top_guesses.append(random.choice(string.ascii_letters))
+                candidate = random.choice(string.ascii_letters)
+                if candidate not in top_guesses:
+                    top_guesses.append(candidate)
             preds.append(''.join(top_guesses[:3]))
         return preds
 
